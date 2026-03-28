@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Leaderboard</title>
+<style>
+  /* -------- Theme -------- */
+  :root{
+    --bg:#2c2c2c; --card:#3a3a3a; --row:#4a4a4a; --text:#fff; --muted:#ccc;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI", system-ui, -apple-system, Tahoma, sans-serif;
+    display:flex; justify-content:center; padding:24px;
+  }
+  .card{
+    background:var(--card); border-radius:20px; padding:20px;
+    width:100%; max-width:560px; box-shadow:0 0 25px rgba(0,0,0,.6);
+  }
+  h1{ margin:0 0 8px; font-size:28px; display:flex; align-items:center; gap:10px; }
+  h1 span{ font-size:30px; }
+  .muted{ color:var(--muted); font-size:14px; margin-bottom:14px; }
+
+  /* -------- Row base -------- */
+  #rows{ display:block; }
+  .row{
+    position:relative; overflow:hidden;
+    display:grid; gap:8px 12px;
+    grid-template-columns:60px 1fr 90px 160px; /* rank | name | score | time */
+    align-items:center;
+    background:var(--row); margin:6px 0; padding:10px 14px; border-radius:14px;
+    word-break:break-word;
+    /* เริ่มจากโปร่งใสและเลื่อนลงเล็กน้อย */
+    opacity:0; transform:translateY(20px);
+    animation:fadeSlide .55s cubic-bezier(.22,.61,.36,1) forwards;
+    will-change: transform, opacity;
+  }
+  .rank{ font-weight:700; text-align:center; }
+  .name{ font-weight:700; min-width:0; }
+  .score{ text-align:center; font-size:18px; }
+  .time{ font-size:13px; color:#eee; }
+
+  /* -------- Top 3 gradient + glow + shimmer -------- */
+  .row.top1{ background:linear-gradient(90deg,#806600,#4a4a4a); }
+  .row.top2{ background:linear-gradient(90deg,#8f8f8f,#4a4a4a); }
+  .row.top3{ background:linear-gradient(90deg,#a74f00,#4a4a4a); }
+
+  .row.top1::after, .row.top2::after, .row.top3::after{
+    content:""; position:absolute; inset:-2px; border-radius:14px; pointer-events:none;
+    box-shadow:0 0 24px 6px rgba(255,213,77,.25);
+  }
+  .row.top2::after{ box-shadow:0 0 24px 6px rgba(220,230,235,.2); }
+  .row.top3::after{ box-shadow:0 0 24px 6px rgba(255,176,116,.22); }
+
+  .row.top1::before, .row.top2::before, .row.top3::before{
+    content:""; position:absolute; top:0; left:-40%; width:40%; height:100%;
+    border-radius:14px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+    animation:shimmer 2.2s linear infinite;
+  }
+
+  /* -------- Animations -------- */
+  @keyframes fadeSlide{
+    from{ opacity:0; transform:translateY(20px); }
+    to  { opacity:1; transform:translateY(0); }
+  }
+  @keyframes shimmer{
+    0%{ transform:translateX(0); }
+    100%{ transform:translateX(260%); }
+  }
+
+  /* Hover (อุปกรณ์มีเมาส์) */
+  @media (hover:hover) and (pointer:fine){
+    .row{ transition: transform .25s ease; }
+    .row:hover{ transform:translateY(-2px); }
+  }
+
+  /* -------- Tablet -------- */
+  @media (max-width:900px){
+    .row{ grid-template-columns:50px 1fr 80px 140px; }
+  }
+
+  /* -------- Mobile / iPad แนวตั้ง -------- */
+  @media (max-width:600px){
+    body{ padding:14px; }
+    .card{ padding:16px; border-radius:16px; }
+    h1{ font-size:22px; } h1 span{ font-size:24px; }
+    .row{
+      grid-template-columns:44px 1fr;
+      grid-template-rows:auto auto;
+      gap:6px 10px; padding:10px 12px;
+    }
+    .rank{ grid-row:span 2; align-self:center; }
+    .score,.time{ text-align:left; font-size:14px; opacity:.95; }
+    .score::before{ content:"คะแนน: "; font-weight:400; }
+    .time::before{ content:"เวลา: "; font-weight:400; }
+  }
+
+  /* Safe area (iPhone) */
+  @supports (padding: max(0px)){
+    body{
+      padding-left:max(14px, env(safe-area-inset-left));
+      padding-right:max(14px, env(safe-area-inset-right));
+    }
+  }
+
+  /* เคารพผู้ใช้ที่ปิดแอนิเมชัน */
+  @media (prefers-reduced-motion: reduce){
+    .row{ animation: none; opacity:1; transform:none; }
+    .row::before{ animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1><span>👑</span> Leaderboard ตอบคำถาม Quiz</h1>
+    <div class="muted">อัปเดตคะแนนอัตโนมัติ</div>
+    <div id="rows" aria-live="polite" aria-busy="true"></div>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+  /* Firebase ของคุณ */
+  const firebaseConfig = {
+    apiKey: "AIzaSyAgV16MSHwbWjLlJN2KvDq-J-XvJ-c1Po4",
+    authDomain: "leaderboard-29c69.firebaseapp.com",
+    databaseURL: "https://leaderboard-29c69-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "leaderboard-29c69",
+    storageBucket: "leaderboard-29c69.firebasestorage.app",
+    messagingSenderId: "781219933887",
+    appId: "1:781219933887:web:2cebde8927d9bd28dce00a",
+    measurementId: "G-RZ88550W5B"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  const rowsEl = document.getElementById('rows');
+
+  const fmt = (ms)=>{
+    if(!ms) return "-";
+    return new Date(ms).toLocaleString("th-TH",{ hour12:false });
+  };
+
+  function render(players){
+    // ล้างก่อนเพื่อลงแถวใหม่พร้อมเอฟเฟกต์
+    rowsEl.innerHTML = "";
+
+    // เรียงคะแนนมาก -> น้อย, ถ้าเท่ากันดูเวลาอัปเดตล่าสุด
+    players.sort((a,b)=>{
+      if(b.score !== a.score) return b.score - a.score;
+      return (b.lastTs||0) - (a.lastTs||0);
+    });
+
+    players.forEach((p,i)=>{
+      const row = document.createElement("div");
+      const topClass = (i===0) ? "top1" : (i===1) ? "top2" : (i===2) ? "top3" : "";
+      row.className = `row ${topClass}`;
+
+      const medal = i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "";
+
+      row.innerHTML = `
+        <div class="rank" aria-label="อันดับ">${medal || (i+1)}</div>
+        <div class="name" aria-label="ชื่อผู้เล่น">${p.name ?? "?"}</div>
+        <div class="score" aria-label="คะแนน">${p.score ?? 0}</div>
+        <div class="time" aria-label="เวลาอัปเดต">${fmt(p.lastTs)}</div>
+      `;
+
+      /* ทำ stagger: ดีเลย์เพิ่มทีละ 0.1s */
+      row.style.animationDelay = (i * 0.1) + "s";
+
+      rowsEl.appendChild(row);
+    });
+
+    rowsEl.setAttribute("aria-busy","false");
+  }
+
+  // ฟัง realtime
+  onValue(ref(db,"players"), (snap)=>{
+    const data = snap.val() || {};
+    const list = Object.entries(data).map(([id,v])=>({
+      name: v?.name || id,
+      score: Number(v?.score) || 0,
+      lastTs: v?.lastTs ?? null
+    }));
+    render(list);
+  }, (err)=>{
+    console.error(err);
+    rowsEl.innerHTML = '<div class="muted">โหลดข้อมูลไม่สำเร็จ</div>';
+    rowsEl.setAttribute("aria-busy","false");
+  });
+</script>
+</body>
+</html>

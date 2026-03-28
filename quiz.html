@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🚀 Kahoot Quiz — เทคโนโลยีอวกาศ (20 ข้อ / 4 นาที)</title>
+  <style>
+    :root{ --bg:#2c2c2c; --card:#3a3a3a; --muted:#cccccc; --text:#ffffff; --brand:#6b8cff; --accent:#ffd54d; --line:#4b4b4b; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+    .wrap{max-width:900px;margin:32px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    h1{margin:0 0 12px;text-align:center;font-size:26px;color:var(--accent)}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
+    input[type=text]{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:#2f2f2f;color:#fff;min-width:240px}
+    button{padding:10px 16px;border-radius:10px;border:1px solid color-mix(in oklab, var(--brand) 55%, #000 45%);background:var(--brand);color:#fff;font-weight:700;cursor:pointer;transition:.15s}
+    button:hover{filter:brightness(1.05)} button:disabled{opacity:.6;cursor:not-allowed}
+    .hud{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:16px}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:#323232;color:#fff}
+    .qbox{margin-top:20px;padding:18px;border-radius:14px;background:#323232;border:1px solid var(--line)}
+    .qtext{font-size:20px;font-weight:800;margin-bottom:14px;text-align:center}
+    .choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:700px){.choices{grid-template-columns:1fr}}
+    .choice{padding:14px;border-radius:12px;background:#2f2f2f;border:1px solid var(--line);cursor:pointer;transition:.15s;text-align:center;font-weight:700;color:#fff}
+    .choice:hover{border-color:#7f8cff;transform:scale(1.01)}
+    .choice.locked{pointer-events:none;opacity:.85;border-color:#5a5a5a}
+    .choice.correct{box-shadow:0 0 0 3px #8ef59f99 inset}
+    .choice.wrong{box-shadow:0 0 0 3px #ff9a9a99 inset}
+    .bar{height:12px;background:#2b2b2b;border-radius:999px;overflow:hidden;margin-top:6px;border:1px solid var(--line)}
+    .fill{height:100%;background:linear-gradient(90deg,#9bb7ff,#6b8cff)}
+    /* แถบผลลัพธ์ใต้ตัวเลือก */
+    #bonusMsg{ margin-top:10px;text-align:center;font-weight:800;font-size:16px;line-height:1.2;min-height:22px; }
+    #bonusMsg.ok{color:#ffd54d} #bonusMsg.ok .ico{color:#b28cff}
+    #bonusMsg.err{color:#ff9a9a} #bonusMsg.err .ico{color:#ff9a9a}
+    .ok{color:#8ef59f} .err{color:#ff9a9a}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🚀 Kahoot Quiz — เทคโนโลยีอวกาศ (20 ข้อ / 4 นาที)</h1>
+      <p class="muted" style="text-align:center">ตอบให้เร็วและถูกต้อง คะแนนจะถูกส่งไป Leaderboard แบบเรียลไทม์</p>
+
+      <div class="row" style="margin-top:18px">
+        <input id="playerId" type="text" placeholder="พิมพ์ชื่อผู้เล่น เช่น Kitxreal56" />
+        <button id="startBtn">▶ เริ่มทำข้อสอบ</button>
+      </div>
+      <p id="status" class="muted" style="text-align:center;margin-top:8px"></p>
+
+      <div id="hud" class="hud" style="display:none">
+        <span class="pill">ข้อที่ <b id="progress">1/20</b></span>
+        <span class="pill">เวลาที่เหลือ: <b id="time">04:00</b></span>
+        <span class="pill">ถูก: <b id="correct">0</b></span>
+        <span class="pill">คะแนน: <b id="points">0</b></span>
+        <span class="pill">โบนัสล่าสุด: <b id="bonus">+0</b></span>
+      </div>
+
+      <div id="qbox" class="qbox" style="display:none">
+        <div class="qtext" id="qtext">คำถาม</div>
+        <div id="choices" class="choices"></div>
+        <div id="bonusMsg"></div>
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap">
+          <div class="bar" style="flex:1 1 280px"><div id="timefill" class="fill" style="width:100%"></div></div>
+          <button id="submitBtn" style="min-width:120px">ส่งทันที</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+  /* ================= Firebase ================= */
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getDatabase, ref, set, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+  /* Firebase ของคุณ */
+  const firebaseConfig = {
+    apiKey: "AIzaSyAgV16MSHwbWjLlJN2KvDq-J-XvJ-c1Po4",
+    authDomain: "leaderboard-29c69.firebaseapp.com",
+    databaseURL: "https://leaderboard-29c69-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "leaderboard-29c69",
+    storageBucket: "leaderboard-29c69.firebasestorage.app",
+    messagingSenderId: "781219933887",
+    appId: "1:781219933887:web:2cebde8927d9bd28dce00a",
+    measurementId: "G-RZ88550W5B"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  /* ===== Config ===== */
+  const EXERCISE_ID = 'space-tech-20q';
+  const LIMIT_SECONDS = 60 * 4; // 4 นาที
+  const POINT_PER_CORRECT = 1;
+  const BONUS_EVERY_STREAK = 2; // ถูกติดกันทุก 2 ข้อ +1
+
+  /* ===== 20 Questions (ตามที่คุณส่งมา) ===== */
+  const BASE_QUESTIONS = [
+    {question:"NASA ก่อตั้งขึ้นในปีใด?",choices:["1950","1958","1969","1975"],answerIndex:1},
+    {question:"โครงการ Apollo 11 ของ NASA มีความสำคัญอย่างไร?",choices:["ส่งมนุษย์ไปดาวอังคาร","ส่งมนุษย์ไปเหยียบดวงจันทร์ครั้งแรก","ส่งดาวเทียมขึ้นวงโคจร","สร้างกล้องโทรทรรศน์อวกาศ"],answerIndex:1},
+    {question:"ดาวเคราะห์ที่ใกล้ดวงอาทิตย์ที่สุดคืออะไร?",choices:["ศุกร์","พุธ","โลก","อังคาร"],answerIndex:1},
+    {question:"ดวงอาทิตย์ผลิตพลังงานจากกระบวนการใด?",choices:["การสลายตัวกัมมันตรังสี","การเผาไหม้ก๊าซออกซิเจน","การหลอมรวมของนิวเคลียส (Nuclear Fusion)","การแปรสภาพทางเคมี"],answerIndex:2},
+    {question:"แสงจากดวงอาทิตย์ใช้เวลากี่นาทีจึงมาถึงโลก?",choices:["1 นาที","5 นาที","8 นาที","15 นาที"],answerIndex:2},
+    {question:"แรงโน้มถ่วงของดวงจันทร์ส่งผลต่อสิ่งใดบนโลกมากที่สุด?",choices:["อุณหภูมิ","น้ำขึ้นน้ำลง","สนามแม่เหล็กโลก","ฤดูกาล"],answerIndex:1},
+    {question:"มนุษย์ไปเหยียบดวงจันทร์ครั้งแรกเมื่อปีใด?",choices:["1958","1965","1969","1972"],answerIndex:2},
+    {question:"กาแล็กซีที่เราอาศัยอยู่คืออะไร?",choices:["Andromeda","Milky Way (ทางช้างเผือก)","Sombrero","Whirlpool"],answerIndex:1},
+    {question:"ดาวที่มีมวลมากเมื่อสิ้นอายุขัยอาจกลายเป็นอะไร?",choices:["ดาวแคระขาว","หลุมดำ","ดาวเคราะห์น้อย","ดาวหาง"],answerIndex:1},
+    {question:"ขอบเขตที่ไม่มีสิ่งใดหลุดพ้นแรงโน้มถ่วงของหลุมดำได้เรียกว่าอะไร?",choices:["Core Zone","Horizon Line","Event Horizon","Gravity Edge"],answerIndex:2},
+    {question:"ดาวเทียมดวงแรกของโลกคืออะไร?",choices:["Hubble","Sputnik 1","Voyager 1","Skylab"],answerIndex:1},
+    {question:"ดาวเทียมค้างฟ้า (Geostationary Orbit) ต้องอยู่สูงประมาณกี่กิโลเมตร?",choices:["500 กม.","2,000 กม.","10,000 กม.","35,786 กม."],answerIndex:3},
+    {question:"ยานอวกาศ Voyager 1 ปัจจุบันไปถึงที่ใดแล้ว?",choices:["ดวงจันทร์","ดาวพฤหัส","ขอบระบบสุริยะ","ดาวอังคาร"],answerIndex:2},
+    {question:"สถานีอวกาศนานาชาติ (ISS) เป็นความร่วมมือของประเทศใด?",choices:["สหรัฐฯ และรัสเซียเท่านั้น","สหรัฐฯ ยุโรป ญี่ปุ่น รัสเซีย และแคนาดา","จีนและสหรัฐฯ","ยุโรป ญี่ปุ่น และจีน"],answerIndex:1},
+    {question:"ชุดนักบินอวกาศ (Space Suit) มีหน้าที่หลักคืออะไร?",choices:["ป้องกันรังสีและแรงโน้มถ่วงสูง","ป้องกันอากาศและควบคุมร่างกายให้มีสภาพเหมาะสม","ใช้เก็บข้อมูลทางวิทยาศาสตร์","ทำให้นักบินมองเห็นในความมืด"],answerIndex:1},
+    {question:"หมวกของชุดอวกาศมีอุปกรณ์สำคัญอะไรติดตั้งอยู่?",choices:["ระบบปรับแรงดัน","แผงโซลาร์เซลล์","แผ่นป้องกันแสงและช่องสื่อสาร","เครื่องตรวจจับรังสี"],answerIndex:2},
+    {question:"อาหารในอวกาศสมัยแรกถูกบรรจุในลักษณะใด?",choices:["กล่องโลหะ","ถุงยางสุญญากาศ","หลอดคล้ายยาสีฟัน","ซองกระดาษ"],answerIndex:2},
+    {question:"อาหารอวกาศในปัจจุบันถูกพัฒนาให้มีลักษณะอย่างไร?",choices:["ต้องกินเป็นผงผสมน้ำเสมอ","มีเมนูใกล้เคียงกับบนโลกมากขึ้น","มีแต่ผลไม้แห้ง","มีเฉพาะของเหลว"],answerIndex:1},
+    {question:"โครงการ Artemis ของ NASA มีเป้าหมายหลักคืออะไร?",choices:["ส่งมนุษย์ไปดาวอังคารทันที","ส่งมนุษย์กลับไปดวงจันทร์","สร้างกล้องโทรทรรศน์อวกาศใหม่","ขยายสถานีอวกาศนานาชาติ"],answerIndex:1},
+    {question:"อนาคตของการเดินทางในอวกาศที่ใกล้ที่สุดคืออะไร?",choices:["การสร้างฐานถาวรบนดวงจันทร์","การเดินทางไปยังดาวเนปจูน","การตั้งอาณานิคมบนดาวหาง","การท่องเที่ยวไปกาแล็กซีอื่น"],answerIndex:0}
+  ];
+
+  /* ===== Shuffle choices ต่อข้อทุกครั้งที่เริ่ม ===== */
+  function shuffleInPlace(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+  function makeShuffledQuestions(baseQs){
+    return baseQs.map(q=>{
+      const pairs = q.choices.map((text,idx)=>({text,correct:idx===q.answerIndex}));
+      shuffleInPlace(pairs);
+      return { question:q.question, choices:pairs.map(p=>p.text), answerIndex:pairs.findIndex(p=>p.correct) };
+    });
+  }
+
+  /* ===== DOM ===== */
+  const $=(s)=>document.querySelector(s);
+  const statusEl=$('#status'), startBtn=$('#startBtn'), submitBtn=$('#submitBtn');
+  const playerInp=$('#playerId');
+  const hud=$('#hud'), progressEl=$('#progress'), timeEl=$('#time');
+  const correctEl=$('#correct'), pointsEl=$('#points'), bonusEl=$('#bonus');
+  const qbox=$('#qbox'), qtext=$('#qtext'), choicesEl=$('#choices'), timefill=$('#timefill');
+  const bonusMsg=$('#bonusMsg');
+
+  /* ===== State ===== */
+  let QUESTIONS=[], TOTAL_QUESTIONS=0;
+  let state={ started:false, tRemain:LIMIT_SECONDS, idx:0, correct:0, points:0, streak:0, answers:[], answered:[], timerId:null };
+  const fmt=(sec)=>`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+
+  /* ===== Render / Answer ===== */
+  function renderQuestion(){
+    const q=QUESTIONS[state.idx];
+    progressEl.textContent=`${state.idx+1}/${TOTAL_QUESTIONS}`;
+    qtext.textContent=q.question;
+    choicesEl.innerHTML='';
+    bonusMsg.classList.remove('ok','err'); bonusMsg.innerHTML='';
+
+    q.choices.forEach((c,i)=>{
+      const btn=document.createElement('button');
+      btn.className='choice'; btn.textContent=c;
+      if(state.answered[state.idx]){ btn.classList.add('locked'); btn.disabled=true; }
+
+      btn.onclick=()=>{
+        if(state.answered[state.idx]) return;
+        state.answered[state.idx]=true; state.answers[state.idx]=i;
+        [...choicesEl.children].forEach(b=>{ b.classList.add('locked'); b.disabled=true; });
+        checkAnswer(i);
+        setTimeout(()=>{ if(state.idx<TOTAL_QUESTIONS-1){ state.idx++; renderQuestion(); } else submit(); },650);
+      };
+      choicesEl.appendChild(btn);
+    });
+
+    correctEl.textContent=String(state.correct);
+    pointsEl.textContent=String(state.points);
+  }
+
+  function checkAnswer(i){
+    const q=QUESTIONS[state.idx];
+    const btns=[...choicesEl.children];
+    btns.forEach((b,bi)=>{ if(bi===q.answerIndex) b.classList.add('correct'); });
+    if(i!==q.answerIndex){ btns[i].classList.add('wrong'); }
+
+    let bonusGain=0;
+    if(i===q.answerIndex){
+      state.correct+=1; state.points+=POINT_PER_CORRECT; state.streak+=1;
+      if(state.streak % BONUS_EVERY_STREAK === 0){ bonusGain=1; state.points+=1; }
+      const bonusText = bonusGain ? ' + โบนัส +' + bonusGain : '';
+      bonusMsg.classList.remove('err'); bonusMsg.classList.add('ok');
+      bonusMsg.innerHTML = '<span class="ico">✔</span> +1 คะแนน' + bonusText;
+    }else{
+      state.streak=0;
+      bonusMsg.classList.remove('ok'); bonusMsg.classList.add('err');
+      bonusMsg.innerHTML = '<span class="ico">✖</span> เฉลย: “' + q.choices[q.answerIndex] + '”';
+    }
+    correctEl.textContent=String(state.correct);
+    pointsEl.textContent=String(state.points);
+    if(bonusEl) bonusEl.textContent='+'+bonusGain;
+  }
+
+  /* ===== Timer ===== */
+  function tick(){
+    state.tRemain=Math.max(0,state.tRemain-1);
+    timeEl.textContent=fmt(state.tRemain);
+    timefill.style.width=(state.tRemain/LIMIT_SECONDS*100)+'%';
+    if(state.tRemain<=0) submit();
+  }
+
+  /* ===== Recompute (safety) ===== */
+  function computeScoreWithBonus(){
+    let points=0, streak=0, correct=0;
+    for(let i=0;i<TOTAL_QUESTIONS;i++){
+      const a=state.answers[i];
+      if(a!==null && a===QUESTIONS[i].answerIndex){
+        correct++; points+=POINT_PER_CORRECT; streak++;
+        if(streak % BONUS_EVERY_STREAK===0) points++;
+      }else{ streak=0; }
+    }
+    return {correct, points};
+  }
+
+  /* ===== Submit ===== */
+  async function submit(){
+    if(!state.started) return;
+    state.started=false; clearInterval(state.timerId);
+
+    const playerId=(playerInp.value||'').trim();
+    if(!playerId){ statusEl.textContent='⚠️ กรุณากรอกชื่อผู้เล่น'; statusEl.className='err'; return; }
+
+    const {correct, points}=computeScoreWithBonus();
+    state.correct=correct; state.points=points; state.streak=0;
+    correctEl.textContent=String(correct); pointsEl.textContent=String(points);
+
+    try{
+      statusEl.textContent='⏳ กำลังส่งคะแนน...'; statusEl.className='';
+      const logRef=push(ref(db,`submissions/${EXERCISE_ID}`));
+      await set(logRef,{playerId,name:playerId,score:points,ts:serverTimestamp()});
+      await set(ref(db,`players/${playerId}/name`),   playerId);
+      await set(ref(db,`players/${playerId}/score`),  points);
+      await set(ref(db,`players/${playerId}/lastTs`), Date.now());
+      statusEl.textContent='✔ ส่งสำเร็จ ถูก '+state.correct+'/'+TOTAL_QUESTIONS; statusEl.className='ok';
+    }catch(e){
+      console.error(e);
+      statusEl.textContent='❌ ส่งไม่สำเร็จ โปรดลองอีกครั้ง'; statusEl.className='err';
+    }
+  }
+
+  /* ===== Start ===== */
+  function start(){
+    const playerId=(playerInp.value||'').trim();
+    if(!playerId){ statusEl.textContent='⚠️ กรุณากรอกชื่อผู้เล่น'; statusEl.className='err'; return; }
+
+    // สุ่มตำแหน่งตัวเลือกของทุกข้อ
+    QUESTIONS = makeShuffledQuestions(BASE_QUESTIONS);
+    TOTAL_QUESTIONS = QUESTIONS.length;
+
+    statusEl.textContent='';
+    startBtn.disabled=true; submitBtn.disabled=false;
+    hud.style.display='flex'; qbox.style.display='block';
+
+    state={ started:true, tRemain:LIMIT_SECONDS, idx:0, correct:0, points:0, streak:0,
+            answers:Array(TOTAL_QUESTIONS).fill(null),
+            answered:Array(TOTAL_QUESTIONS).fill(false),
+            timerId:null };
+
+    renderQuestion(); timeEl.textContent=fmt(state.tRemain); timefill.style.width='100%';
+    state.timerId=setInterval(tick,1000);
+  }
+
+  startBtn.onclick=start; submitBtn.onclick=submit;
+</script>
+</body>
+</html>
