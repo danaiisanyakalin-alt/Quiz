@@ -73,7 +73,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import { getDatabase, ref, set, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
 
-  /* Firebase ของคุณ */
+  /* Firebase */
   const firebaseConfig = {
     apiKey: "AIzaSyAgV16MSHwbWjLlJN2KvDq-J-XvJ-c1Po4",
     authDomain: "leaderboard-29c69.firebaseapp.com",
@@ -93,7 +93,7 @@
   const POINT_PER_CORRECT = 1;
   const BONUS_EVERY_STREAK = 2; // ถูกติดกันทุก 2 ข้อ +1
 
-  /* ===== 20 Questions (ตามที่คุณส่งมา) ===== */
+  /* ===== 20 Questions ===== */
   const BASE_QUESTIONS = [
     {question:"NASA ก่อตั้งขึ้นในปีใด?",choices:["1950","1958","1969","1975"],answerIndex:1},
     {question:"โครงการ Apollo 11 ของ NASA มีความสำคัญอย่างไร?",choices:["ส่งมนุษย์ไปดาวอังคาร","ส่งมนุษย์ไปเหยียบดวงจันทร์ครั้งแรก","ส่งดาวเทียมขึ้นวงโคจร","สร้างกล้องโทรทรรศน์อวกาศ"],answerIndex:1},
